@@ -72,3 +72,7 @@ dmypy.json
 *.temp
 .cache/
 
+# Original documentation folder
+original-docs/
+original docs/
+
