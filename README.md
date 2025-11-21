@@ -2,6 +2,12 @@
 
 This project integrates Qwen Image Edit models with OpenWebUI using a Robyn-based API service. Models are downloaded directly from **Hugging Face Hub** (faster) with MINIO S3 as a fallback for custom models.
 
+## Quick Links
+
+- **[Local Testing Guide](LOCAL_TESTING.md)** - Test locally before deploying
+- **[Coolify Deployment Guide](COOLIFY_DEPLOYMENT.md)** - Deploy to Coolify production
+- **[Setup Instructions](SETUP.md)** - GitHub repository setup
+
 ## Architecture
 
 - **Qwen API Service**: Robyn-based REST API service running Qwen Image Edit models

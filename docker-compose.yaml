@@ -1,0 +1,61 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - PORT=8080
+      - QWEN_API_URL=http://qwen-api:8081
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080"]
+      interval: 5s
+      timeout: 30s
+      retries: 10
+    networks:
+      - qwen-network
+    depends_on:
+      qwen-api:
+        condition: service_healthy
+
+  qwen-api:
+    build:
+      context: ./qwen-api-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - qwen-models:/app/models
+    environment:
+      - PORT=8081
+      # Hugging Face Configuration (Primary - faster downloads)
+      - USE_HUGGINGFACE=${USE_HUGGINGFACE:-true}
+      - HUGGINGFACE_MODEL_ID=${HUGGINGFACE_MODEL_ID:-Qwen/Qwen2-VL-2B-Instruct}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}  # Fallback support
+      # MINIO Configuration (Fallback for custom models)
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-localhost:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-qwen-models}
+      - MINIO_SECURE=${MINIO_SECURE:-false}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - qwen-network
+
+volumes:
+  open-webui:
+  qwen-models:
+
+networks:
+  qwen-network:
+    driver: bridge
+
