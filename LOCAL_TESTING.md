@@ -2,11 +2,28 @@
 
 This guide explains how to test the Qwen Image Integration locally before deploying to Coolify.
 
+**Note**: This is for **local testing only**. Production deployment uses Coolify (see `COOLIFY_DEPLOYMENT.md`).
+
 ## Prerequisites
 
-- Docker and Docker Compose installed
+- Docker/Podman installed (with Docker compatibility aliases)
+- Docker Compose installed
 - Git repository cloned
 - Hugging Face token (get from https://huggingface.co/settings/tokens)
+
+## Using Podman with Docker Aliases
+
+If you're using Podman with Docker aliases (already configured), you can use all `docker` and `docker-compose` commands normally - they'll work with Podman under the hood.
+
+### Start Podman Machine (if needed)
+
+```bash
+# Start Podman machine (if not running)
+podman machine start
+
+# Check status
+podman machine list
+```
 
 ## Quick Start
 
@@ -28,6 +45,9 @@ HF_TOKEN=your-huggingface-token-here
 ### 2. Start Services
 
 ```bash
+# Make sure Podman machine is running (if using Podman)
+podman machine start
+
 # Start both services
 docker-compose up -d
 
@@ -46,6 +66,9 @@ curl http://localhost:8081/api/v1/models
 
 # OpenWebUI should be accessible at
 open http://localhost:8080
+
+# Check running containers
+docker ps
 ```
 
 ## Testing the Integration
@@ -111,11 +134,18 @@ curl -X POST http://localhost:8081/api/v1/camera-edit \
 lsof -i :8080
 lsof -i :8081
 
+# Check Podman machine status (if using Podman)
+podman machine list
+podman machine start  # If stopped
+
 # Stop existing containers
 docker-compose down
 
 # Remove volumes (clears model cache)
 docker-compose down -v
+
+# Check containers
+docker ps -a
 ```
 
 ### Model Download Issues
@@ -186,6 +216,9 @@ docker-compose exec qwen-api ls -la /app/models/
 
 # Clear cache (removes downloaded models)
 docker-compose down -v
+
+# List volumes
+docker volume ls
 ```
 
 ## Stopping Services
@@ -199,6 +232,9 @@ docker-compose down
 
 # Stop and remove everything including volumes
 docker-compose down -v
+
+# Stop Podman machine when done (saves resources, if using Podman)
+podman machine stop
 ```
 
 ## Performance Tips
