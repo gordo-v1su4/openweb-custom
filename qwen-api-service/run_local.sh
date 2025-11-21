@@ -28,15 +28,22 @@ fi
 # Load environment variables
 export $(cat ../.env | grep -v '^#' | xargs)
 
-# Create venv if it doesn't exist
-if [ ! -d "venv" ]; then
+# Create venv if it doesn't exist (uv creates .venv by default)
+if [ ! -d ".venv" ] && [ ! -d "venv" ]; then
     echo -e "${GREEN}📦 Creating virtual environment...${NC}"
     uv venv
 fi
 
-# Activate venv
+# Activate venv (uv creates .venv, but check for both)
 echo -e "${GREEN}🔌 Activating virtual environment...${NC}"
-source venv/bin/activate
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+else
+    echo "❌ Virtual environment not found!"
+    exit 1
+fi
 
 # Install dependencies
 echo -e "${GREEN}📥 Installing dependencies with uv...${NC}"
@@ -45,10 +52,24 @@ uv pip install -r requirements.txt
 # Create models directory
 mkdir -p models/huggingface models/loras
 
+# Check if port is in use (but allow gvproxy - that's Podman's proxy)
+PORT=${PORT:-8081}
+PORT_IN_USE=$(lsof -Pi :$PORT -sTCP:LISTEN -t 2>/dev/null | grep -v "gvproxy" || true)
+if [ ! -z "$PORT_IN_USE" ]; then
+    echo -e "${BLUE}⚠️  Port $PORT is already in use${NC}"
+    echo "   Checking what's using it..."
+    lsof -i :$PORT | grep -v "gvproxy" || true
+    echo ""
+    echo "   Options:"
+    echo "   1. Stop the existing service"
+    echo "   2. Use a different port: PORT=8082 ./run_local.sh"
+    exit 1
+fi
+
 # Run the service
-echo -e "${GREEN}🎬 Starting Qwen API service on port 8081...${NC}"
-echo -e "${BLUE}   Health check: http://localhost:8081/health${NC}"
-echo -e "${BLUE}   Models API: http://localhost:8081/api/v1/models${NC}"
+echo -e "${GREEN}🎬 Starting Qwen API service on port $PORT...${NC}"
+echo -e "${BLUE}   Health check: http://localhost:$PORT/health${NC}"
+echo -e "${BLUE}   Models API: http://localhost:$PORT/api/v1/models${NC}"
 echo ""
 echo "Press Ctrl+C to stop"
 echo ""

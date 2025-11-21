@@ -10,7 +10,6 @@ import io
 import asyncio
 from typing import Optional
 from robyn import Robyn, Request
-from robyn.robyn import Response
 from minio import Minio
 from minio.error import S3Error
 import torch
@@ -23,6 +22,12 @@ from transformers import AutoModel, AutoProcessor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Robyn initialization - use current directory for local dev
+# Robyn needs a writable directory, so use the script's directory
+import pathlib
+script_dir = pathlib.Path(__file__).parent.absolute()
+# Change to script directory so Robyn can write files
+os.chdir(str(script_dir))
 app = Robyn(__file__)
 
 # Model Configuration
@@ -38,8 +43,13 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "")
 MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "qwen-models")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
-# Model paths
-MODEL_CACHE_DIR = "/app/models"
+# Model paths - use local directory for local dev, /app/models for Docker
+if os.path.exists("/app/models"):
+    # Running in Docker
+    MODEL_CACHE_DIR = "/app/models"
+else:
+    # Running locally
+    MODEL_CACHE_DIR = os.path.join(os.path.dirname(__file__), "models")
 HUGGINGFACE_CACHE_DIR = os.path.join(MODEL_CACHE_DIR, "huggingface")
 LORA_DIR = os.path.join(MODEL_CACHE_DIR, "loras")
 
@@ -173,11 +183,7 @@ def load_models():
 @app.get("/health")
 async def health_check(request: Request):
     """Health check endpoint"""
-    return Response(
-        status_code=200,
-        body=json.dumps({"status": "healthy", "service": "qwen-api"}),
-        headers={"Content-Type": "application/json"}
-    )
+    return {"status": "healthy", "service": "qwen-api"}
 
 
 @app.post("/api/v1/edit")
@@ -202,11 +208,7 @@ async def edit_image(request: Request):
         use_lightning = body.get("use_lightning", True)
         
         if not image_base64:
-            return Response(
-                status_code=400,
-                body=json.dumps({"error": "Missing image data"}),
-                headers={"Content-Type": "application/json"}
-            )
+            return {"error": "Missing image data"}, 400
         
         # Decode image
         image_data = base64.b64decode(image_base64)
@@ -226,30 +228,18 @@ async def edit_image(request: Request):
         image.save(output_buffer, format="PNG")
         output_base64 = base64.b64encode(output_buffer.getvalue()).decode()
         
-        return Response(
-            status_code=200,
-            body=json.dumps({
-                "image": output_base64,
-                "prompt": prompt,
-                "steps": steps,
-                "lightning": use_lightning
-            }),
-            headers={"Content-Type": "application/json"}
-        )
+        return {
+            "image": output_base64,
+            "prompt": prompt,
+            "steps": steps,
+            "lightning": use_lightning
+        }
         
     except json.JSONDecodeError:
-        return Response(
-            status_code=400,
-            body=json.dumps({"error": "Invalid JSON"}),
-            headers={"Content-Type": "application/json"}
-        )
+        return {"error": "Invalid JSON"}, 400
     except Exception as e:
         logger.error(f"Error processing image: {e}")
-        return Response(
-            status_code=500,
-            body=json.dumps({"error": str(e)}),
-            headers={"Content-Type": "application/json"}
-        )
+        return {"error": str(e)}, 500
 
 
 @app.get("/api/v1/models")
@@ -279,11 +269,7 @@ async def list_models(request: Request):
         }
     }
     
-    return Response(
-        status_code=200,
-        body=json.dumps(models),
-        headers={"Content-Type": "application/json"}
-    )
+    return models
 
 
 @app.post("/api/v1/camera-edit")
@@ -312,11 +298,7 @@ async def camera_edit(request: Request):
         use_lightning = body.get("use_lightning", True)
         
         if not image_base64:
-            return Response(
-                status_code=400,
-                body=json.dumps({"error": "Missing image data"}),
-                headers={"Content-Type": "application/json"}
-            )
+            return {"error": "Missing image data"}, 400
         
         # Build full prompt from camera preset and lighting
         camera_presets = {
@@ -375,32 +357,20 @@ async def camera_edit(request: Request):
         image.save(output_buffer, format="PNG")
         output_base64 = base64.b64encode(output_buffer.getvalue()).decode()
         
-        return Response(
-            status_code=200,
-            body=json.dumps({
-                "image": output_base64,
-                "camera_preset": camera_preset,
-                "lighting": lighting,
-                "prompt": full_prompt,
-                "steps": steps,
-                "lightning": use_lightning
-            }),
-            headers={"Content-Type": "application/json"}
-        )
+        return {
+            "image": output_base64,
+            "camera_preset": camera_preset,
+            "lighting": lighting,
+            "prompt": full_prompt,
+            "steps": steps,
+            "lightning": use_lightning
+        }
         
     except json.JSONDecodeError:
-        return Response(
-            status_code=400,
-            body=json.dumps({"error": "Invalid JSON"}),
-            headers={"Content-Type": "application/json"}
-        )
+        return {"error": "Invalid JSON"}, 400
     except Exception as e:
         logger.error(f"Error processing camera edit: {e}")
-        return Response(
-            status_code=500,
-            body=json.dumps({"error": str(e)}),
-            headers={"Content-Type": "application/json"}
-        )
+        return {"error": str(e)}, 500
 
 
 # Initialize models on startup
@@ -414,5 +384,7 @@ async def startup():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8081))
+    # Ensure we're in the right directory (Robyn may need this)
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     app.start(port=port, host="0.0.0.0")
 
